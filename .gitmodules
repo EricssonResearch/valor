@@ -1,0 +1,3 @@
+[submodule "ufser"]
+	path = ufser
+	url = ../ufser.git
