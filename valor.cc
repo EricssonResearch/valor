@@ -139,6 +139,7 @@ ser_ctx<int> k_orig(int in) {
     co_return 14;
 }
 
+[[valor_skip]]
 ser_ctx<int> k(int in) {
 auto p = co_await ser_ctx<int>::get_promise{};
 if (auto st = p->stage()) {

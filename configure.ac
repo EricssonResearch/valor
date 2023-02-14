@@ -19,7 +19,7 @@ AS_IF([test "$enable_debug" = yes],
 AC_CHECK_PROGS([LC], [llvm-config], [:])
 AS_IF([test "$LC" = :], [AC_MSG_ERROR([Cannot find llvm-config; `apt install llvm`?])])
 CLANG_LIBS=
-for i in Tooling Frontend Driver Serialization Sema Analysis AST Parse Edit Lex Basic
+for i in Tooling Frontend Driver Serialization Sema Analysis AST ASTMatchers Parse Edit Lex Basic Rewrite
 do CLANG_LIBS="$CLANG_LIBS -lclang$i";
 done
 

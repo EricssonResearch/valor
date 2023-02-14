@@ -1,5 +1,5 @@
 ACLOCAL_AMFLAGS = -Im4
-SUBDIRS = . tests #vapor 2nd
+SUBDIRS = . #vapor tests
 
 bin_PROGRAMS = valet valor
 
@@ -13,5 +13,5 @@ valet_LDFLAGS = $(AM_LDFLAGS) $(LLVM_LD)
 valet_LDADD = $(LLVM_LIBS)
 
 check: $(bin_PROGRAMS)
-	valor s | valor r
-# 	valet $(srcdir)/valor.cc --extra-arg=-std=c++20 --extra-arg=-I$(srcdir) --
+# 	valor s | valor r
+	valet $(srcdir)/valor.cc --extra-arg=-std=c++20 --extra-arg=-I$(srcdir) --
