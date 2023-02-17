@@ -14,6 +14,7 @@
 #include <clang/Sema/SemaDiagnostic.h>
 #include <clang/Tooling/Tooling.h>
 #pragma GCC diagnostic pop
+#include <llvm/Support/raw_os_ostream.h>
 #include <filesystem>
 #include <numeric>
 #include <unordered_set>
@@ -28,6 +29,7 @@ using namespace ast_matchers;
 using namespace tooling;
 
 namespace fs = std::filesystem;
+using namespace std::string_literals;
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-parameter"
@@ -46,54 +48,25 @@ struct skip_attr : ParsedAttrInfo {
         return false;
     }
     bool diagAppertainsToStmt(Sema&, ParsedAttr const&, Stmt const*) const override { return false; }
-    AttrHandling handleDeclAttribute(Sema& s, Decl* d, ParsedAttr const&) const override { skip.emplace(d); return AttributeApplied; }
+    AttrHandling handleDeclAttribute(Sema&, Decl* d, ParsedAttr const&) const override { skip.emplace(d); return AttributeApplied; }
     static std::unordered_set<Decl const*> skip; // dance around custom attributes not being clang::Attr so we don't get them in hasAttr*()
 };
 
 AST_MATCHER(CoroutineBodyStmt, coro_body) { return true; }
 AST_MATCHER(Decl, valor_skip) { return skip_attr::skip.count(&Node); }
+AST_MATCHER(QualType, valor_ser_ctx) { return Node.getBaseTypeIdentifier()->getName() == "ser_ctx"; }
 
 #pragma GCC diagnostic pop
 
 struct valet : SyntaxOnlyAction, MatchFinder, SourceFileCallbacks, private MatchFinder::MatchCallback, private Rewriter {
-    // struct visitor : ASTConsumer, RecursiveASTVisitor<visitor> {
-    //     explicit visitor(ASTContext& ctx) : ctx(ctx) {}
-    //     virtual void HandleTranslationUnit(ASTContext&) override { /*assert(&c == &ctx);*/ TraverseAST(ctx); /*TraverseDecl(ctx.getTranslationUnitDecl());*/ }
-    //     bool VisitAttr(auto a) { std::clog << "attr: " << (a->getAttrName() ? a->getAttrName()->getName() : "<unnamed>") << '\n'; return true; }
-    //     bool VisitAttr(AssumptionAttr* a) { std::clog << "aatr: " << a->getAssumption() << '\n'; return true; }
-    //     // bool VisitStmt(auto s) { std::clog << "stmt: " << s->getStmtClassName() << '\n'; return true; }
-    //     bool VisitType(auto t) { std::clog << "type: " << t->getTypeClassName() << '\n'; return true; }
-    //     bool VisitTypeLoc(auto) { std::clog << "tloc: " << "l->...()" << '\n'; return true; }
-    //     bool VisitQualifiedTypeLoc(auto) { std::clog << "qloc: " << "l->...()" << '\n'; return true; }
-    //     bool VisitUnqualTypeLoc(auto) { std::clog << "uloc: " << "l->...()" << '\n'; return true; }
-    //     bool VisitDecl(auto d) {
-    //         std::clog << "decl: " << d->getDeclKindName() << '\n';
-    //         // d->dump();
-    //         return true;
-    //     }
-    //     bool VisitDecl(FunctionDecl* f) {
-    //         std::clog << "fdcl: " << f->getName() << '\n';
-    //         // if (f->hasAttr<attr::Assumption>())
-    //         if (f->getAttr<AssumptionAttr>())
-    //             std::clog << " !ass\n";
-    //         return true;
-    //     }
-    //     bool VisitCXXRecordDecl(auto decl) {
-    //         std::clog << " n: " << decl->getName() << " qn: " << decl->getQualifiedNameAsString() << '\n';
-    //         // decl->dump();
-    //         if (decl->getQualifiedNameAsString() == "X")
-    //             if (auto l = ctx.getFullLoc(decl->getBeginLoc()); l.isValid())
-    //                 std::clog << "Found declaration at " << l.getSpellingLineNumber() << ':' << l.getSpellingColumnNumber() << '\n';
-    //         return true;
-    //     }
-    //     ASTContext& ctx;
-    // };
-    // std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance& cc, llvm::StringRef) override { return std::make_unique<visitor>(cc.getASTContext()); }
+    std::ostream* out = nullptr;///< Write output here, presumably from a single file (default: write each file one with '_valet' appended before the extension)
+    bool verbose = false;///< Add 'Valet was here' comments in rewrites (default: off)
     valet() {
-        addMatcher(
+        addMatcher(//TODO valor::ser_ctx defined TODO *templated* coro funcs
             traverse(TK_IgnoreUnlessSpelledInSource, // Optimization; skip it if misses implicit stmts (not expected for coro)
                 functionDecl(
                     has(coro_body()), // Use hasDescendant() if not direct child --> is this possible?
+                    // TODO what if derived from? returns(valor_ser_ctx()),// TODO can we get the *name* of a retval? 'returns(asString(".."))' didn't work // TODO CXXBaseSpec?
                     unless(valor_skip()),
                     hasDescendant(findAll(coawaitExpr().bind("await"))),// TODO ?DependentCoawaitExpr ?co_return
                     optionally(findAll(varDecl().bind("var")))
@@ -102,21 +75,30 @@ struct valet : SyntaxOnlyAction, MatchFinder, SourceFileCallbacks, private Match
                 ).bind("f")
             ), this);
     }
-    bool handleBeginSource(CompilerInstance& cc) override { setSourceMgr(cc.getSourceManager(), cc.getLangOpts()); return true; }
+    bool handleBeginSource(CompilerInstance& cc) override {
+        auto& sm = cc.getSourceManager();
+        DEBUG << "Valet on " << sm.getFileEntryForID(sm.getMainFileID())->getName();
+        setSourceMgr(sm, cc.getLangOpts());
+        skip_attr::skip.clear();// would be better as a member but how to register that?
+        return true;
+    }
     void handleEndSource() override {
         rewrite();
-        auto& sm = getSourceMgr();
-        for (auto i = buffer_begin(); i != buffer_end(); ++i) {// alternative is overwriteChangedFiles() -- we should only have one file here BTW
-            fs::path p(sm.getFileEntryForID(i->first)->tryGetRealPathName().str());
-            auto ex = p.extension();
-            p = (p.replace_extension() += "_valet") += ex;
-            DEBUG << " write to " << p;
-            std::error_code ec;
-            llvm::raw_fd_ostream o(p.native(), ec);
-            if (ec)
-                bail("TODO problem opening " + p.string() + ": " + ec.category().name() + " [" + std::to_string(ec.value()) + ']');
-            i->second.write(o);
-        }
+        for (auto i = buffer_begin(); i != buffer_end(); ++i)// alternative is overwriteChangedFiles() -- we should only have at most one file here BTW
+            if (out) {
+                llvm::raw_os_ostream o(*out);
+                i->second.write(o);
+            } else {
+                fs::path p(getSourceMgr().getFileEntryForID(i->first)->tryGetRealPathName().str());
+                auto ex = p.extension();
+                p = (p.replace_extension() += "_valet") += ex;
+                DEBUG << " write to " << p;
+                std::error_code ec;
+                llvm::raw_fd_ostream o(p.native(), ec);
+                if (ec)
+                    bail("TODO problem opening " + p.string() + ": " + ec.category().name() + " [" + std::to_string(ec.value()) + ']');
+                i->second.write(o);
+            }
     }
     void run(MatchFinder::MatchResult const& res) override {
         auto aw = res.Nodes.getNodeAs<CoawaitExpr>("await");
@@ -125,6 +107,16 @@ struct valet : SyntaxOnlyAction, MatchFinder, SourceFileCallbacks, private Match
                 var && var->getBeginLoc() < aw->getBeginLoc()
                 && (isa<ParmVarDecl>(var) || stage.scope.count(block_of(var, *res.Context)))) // TODO ParmVarDecl references?
             stage.vars.emplace_back(var);
+    }
+    ~valet() { if (out) out->flush(); }
+    /// Prepend necessary compiler options to the supplied list, so that 'args' takes precedence.
+    /// Creates a copy of 'args'.
+    auto cc_opts(CommandLineArguments const& args = {}) const {
+        auto ret = args;
+        auto it = ret.emplace(ret.begin() + !ret.empty()/*argv[0] is the tool, if any*/, "-std=c++20");
+        if (verbose)
+            ret.emplace(it + 1, "-v");
+        return ret;
     }
 private:
     /// Per-coawait rewrite info
@@ -137,13 +129,13 @@ private:
     void rewrite() {
         auto& sm = getSourceMgr();
         for (auto&& [f,ss]: stages) {
-            f->dump();
+            // f->dump();
             INFO << "Valet patching " << f->getNameInfo().getName().getAsString() << " at " << sm.getFilename(f->getLocation()) << ':' << sm.getSpellingLineNumber(f->getBeginLoc());
             assert(!f->hasTrivialBody());
             auto loc = f->getBody()->getBeginLoc();
             auto lineno = [&] { return sm.getSpellingLineNumber(loc); };
             // TODO keep indent after insertions
-            if (InsertTextAfterToken(loc, preamble(ss.size(), lineno())))
+            if (InsertTextAfterToken(loc, preamble(f->getDeclaredReturnType().getAsString(), ss.size(), lineno())))//TODO pre: get full qualif name then skip 'valor::' below
                 bail("preamble");
             for (size_t n = 0; auto& st: ss) {
                 ++n;
@@ -161,33 +153,35 @@ private:
         }
         stages.clear();
     }
-    static std::string preamble(size_t labels, size_t lineno) {
+    std::string preamble(std::string ctx_type, size_t labels, size_t lineno) {
         assert(labels);// otherwise 'f' shouldn't have been matched
-        std::string ret = // TODO ser_ctx<T>
-R"..(
-// Valet preamble
-auto _valet_p = co_await ser_ctx<int>::get_promise{};
+        auto ret = (verbose ? "// Valet preamble\n"s : "") +
+R"(
+auto _valet_p = co_await valor::)" + ctx_type + R"..(::get_promise{};
 if (auto _valet_st = _valet_p->stage()) {
     assert(_valet_st <= ).." + std::to_string(labels) + R"..();
     // std::cerr << "k: to stage " << _valet_st << '\n';
     static ssize_t _valet_stages[] = {0)..";
         for (size_t i = 1; i <= labels; ++i)
-            ret += R"..(, (char*)&&_valet_s).." + std::to_string(i) + R"..( - (char*)&&_valet_s0)..";
-        ret +=
+            ret += ", (char*)&&_valet_s" + std::to_string(i) + " - (char*)&&_valet_s0";
+        return ret +
 R"..(};
     goto *(void*)((char*)&&_valet_s0 + _valet_stages[_valet_st]);
 }
 _valet_s0:
-#line ).." + std::to_string(lineno) + R"..( // End of Valet preamble
-)..";
-        return ret;
+#line ).." + std::to_string(lineno)
+            + (verbose ? " // End of Valet preamble" : "") + '\n';
     }
-    static std::string save(size_t stage, std::string_view varlist, size_t lineno) {
+    std::string save(size_t stage, std::string_view varlist, size_t lineno) {
         // return std::format("\n_valet_p->save({}{});// Valet stage save\n#line {}\n", stage, varlist, lineno); // TODO soon, soon, 13
-        return "\n// Valet stage save\n_valet_p->save(" + std::to_string(stage) + std::string(varlist) + ");\n#line " + std::to_string(lineno) + " // End of Valet save\n";
+        return (verbose ? "\n// Valet stage save"s : "") + "\n_valet_p->save("
+            + std::to_string(stage) + std::string(varlist) + ");\n#line " + std::to_string(lineno)
+            + (verbose ? " // End of Valet save" : "") + '\n';
     }
-    static std::string load(size_t stage, std::string_view varlist, size_t lineno) {
-        return "\n// Valet stage load\n_valet_s" + std::to_string(stage) + ":\n_valet_p->load(" + std::string(varlist) + ");\n#line " + std::to_string(lineno) + " // End of Valet load\n";
+    std::string load(size_t stage, std::string_view varlist, size_t lineno) {
+        return (verbose ? "\n// Valet stage load"s : "") + "\n_valet_s"
+            + std::to_string(stage) + ":\n_valet_p->load(" + std::string(varlist) + ");\n#line " + std::to_string(lineno)
+            + (verbose ? " // End of Valet load" : "") + '\n';
     }
     /// Get or create the stage helper at 'aw' in function 'f'
     stage& ensure_stage_for(FunctionDecl const* f, CoawaitExpr const* aw, ASTContext& ctx) {

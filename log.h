@@ -42,14 +42,9 @@ inline logline::level parse_lvl() {
     return logline::level::LWARN;
 }
 }
-#define LOG_IN_LEVEL(l) valor::logline::need((l)) && valor::logline(std::cout, (l))
+#define LOG_IN_LEVEL(l) valor::logline::need((l)) && valor::logline(std::clog, (l))
 #define INFO LOG_IN_LEVEL(valor::logline::level::LINFO)
 #define LOG INFO
 #define WARN LOG_IN_LEVEL(valor::logline::level::LWARN)
 #define CRIT LOG_IN_LEVEL(valor::logline::level::LCRIT)
 #define DEBUG LOG_IN_LEVEL(valor::logline::level::LDEBUG)
-#ifndef NDEBUG
-#define DEBUG_ONLY(X) X
-#else
-#define DEBUG_ONLY(X)
-#endif

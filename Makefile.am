@@ -1,17 +1,21 @@
 ACLOCAL_AMFLAGS = -Im4
-SUBDIRS = . #vapor tests
+SUBDIRS = . tests #vapor
 
-bin_PROGRAMS = valet valor
+bin_PROGRAMS = valet #valor --> remove cruft from *FLAGS
+noinst_LIBRARIES = libvalet.a
 
 AM_DEFAULT_SOURCE_EXT = .cc
 
-valor_SOURCES = valor.cc ufser/ufser.cpp
+# valor_SOURCES = valor.cc ufser/ufser.cpp
 
-valet_CPPFLAGS = $(AM_CPPFLAGS) $(LLVM_CPP)
-valet_CXXFLAGS = $(AM_CXXFLAGS) $(LLVM_CXX)
+AM_CPPFLAGS += $(LLVM_CPP)
+AM_CXXFLAGS += $(LLVM_CXX)
+
 valet_LDFLAGS = $(AM_LDFLAGS) $(LLVM_LD)
-valet_LDADD = $(LLVM_LIBS)
+valet_LDADD = libvalet.a $(LLVM_LIBS)
 
-check: $(bin_PROGRAMS)
+libvalet_a_SOURCES = valet_lib.cc
+
+# check: $(bin_PROGRAMS)
 # 	valor s | valor r
-	valet $(srcdir)/valor.cc --extra-arg=-std=c++20 --extra-arg=-I$(srcdir) --
+# 	valet $(srcdir)/min.cc --extra-arg=-std=c++20 --extra-arg=-I$(srcdir) --
