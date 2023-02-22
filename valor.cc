@@ -1,15 +1,12 @@
 #include <valor.h>
 #include <iostream>
-// #include <chrono>
-// #include <charconv>
-#include <unistd.h>
 
 using namespace valor;
 using namespace std::chrono_literals;
 
 #define LOG std::cerr << '[' << getpid() << "] "
 
-struct remote_op {//TODO op co_await
+struct remote_op {
     bool await_ready() const noexcept { return false; }
     void await_suspend(std::coroutine_handle<> h) const noexcept { LOG << " remote::asusp " << this << " on handle " << h.address() << '\n'; }
     void await_resume() const noexcept { LOG << " remote::aresume " << this << '\n'; }
@@ -58,36 +55,16 @@ ser_ctx<int> k(int in) {
 //     co_return 14;
 // }
 
-auto start(ser_ctx<auto>&& c) {
-    c.owner = true;
-    c();
-    return std::move(c);
-}
-
-template<typename>
-struct args;
-
-template<typename R, typename... Args>
-struct args<R(*)(Args...)> {
-    using a = std::tuple<Args...>;
-};
-
-auto continue_from(std::string_view ser, auto fun) {
-    auto c = std::apply(fun, typename args<decltype(fun)>::a{});
-    c.deserialize(ser);
-    return start(std::move(c));
-}
-
 void saving() {
     LOG << "start fun\n";
     auto coro = start(k(45));
     auto s = coro.serialize();
-    LOG << "saving coro state: \"" << (s.size() ? uf::print_escaped(s) : "") << "\"\n";
+    LOG << "saving coro state " << (s.size() ? uf::any_view(uf::from_raw, s).print() : "") << '\n';
     std::cout << s;
 }
 
 void restoring(std::string_view ser) {
-    LOG << "restore from: \"" << (ser.size() ? uf::print_escaped(ser) : "") << "\"\n";
+    LOG << "restore from " << (ser.size() ? uf::any_view(uf::from_raw, ser).print() : "") << '\n';
     auto coro = continue_from(ser, k);
     while (coro) {
         LOG << "continue fun\n";

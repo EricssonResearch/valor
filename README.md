@@ -26,6 +26,7 @@ An example for the workflow can be found in `valor.cc` as run by `make check`. F
 
 - No return values from `co_await`
 - Side effects during `co_await`
+- Member coro:s
 - Serializable types: ...
 
 ### Vapor

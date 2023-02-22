@@ -76,8 +76,8 @@ struct valet : SyntaxOnlyAction, MatchFinder, SourceFileCallbacks, private Match
             ), this);
     }
     bool handleBeginSource(CompilerInstance& cc) override {
-        assert(cc.hasDiagnostics());
-        cc.getDiagnostics().setSuppressAllDiagnostics(true);
+        if (!verbose && cc.hasDiagnostics())
+            cc.getDiagnostics().setSuppressAllDiagnostics(true);
         auto& sm = cc.getSourceManager();
         DEBUG << "Valet on " << sm.getFileEntryForID(sm.getMainFileID())->getName();
         setSourceMgr(sm, cc.getLangOpts());

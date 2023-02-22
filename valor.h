@@ -65,4 +65,24 @@ struct ser_ctx {
     };
 };
 
+auto start(ser_ctx<auto>&& c) {
+    c.owner = true;
+    c();
+    return std::move(c);
+}
+
+template<typename>
+struct args;
+
+template<typename R, typename... Args>
+struct args<R(*)(Args...)> {
+    using a = std::tuple<Args...>;
+};
+
+auto continue_from(std::string_view ser, auto fun) {
+    auto c = std::apply(fun, typename args<decltype(fun)>::a{});
+    c.deserialize(ser);
+    return start(std::move(c));
+}
+
 }
