@@ -1,6 +1,5 @@
 #pragma once
 #include <coroutine>
-#include <iostream>
 #include <ufser/ufser.h>
 
 namespace valor {
@@ -31,14 +30,14 @@ struct ser_ctx {
     ~ser_ctx() { if (owner && händel) händel.destroy(); }
     std::string_view serialize() const { return händel.promise().state; }//TODO chk händel
     void deserialize(std::string_view s) const { händel.promise().state = s; }
-    void operator()() const { std::cerr << " h resume\n"; händel(); }
+    void operator()() const { /*std::cerr << " h resume\n";*/ händel(); }
     operator bool() const { return händel && !händel.done(); }
     R get() const requires (!std::is_void_v<R>) { return händel ? std::move(händel.promise().retval) : R(); }//TODO chk done?
     struct promise_type : promise_base<R> {
         std::string state;
         auto get_return_object() noexcept { return ser_ctx{handle_type::from_promise(*this), true}; }
-        std::suspend_always initial_suspend() const noexcept { std::cerr << " init susp\n"; return {}; }
-        std::suspend_always final_suspend() const noexcept { std::cerr << " final susp\n"; return {}; } // if not susp then autodestroys the handle obj -- but then problem at last coro() in restore()
+        std::suspend_always initial_suspend() const noexcept { /*std::cerr << " init susp\n";*/ return {}; }
+        std::suspend_always final_suspend() const noexcept { /*std::cerr << " final susp\n";*/ return {}; } // if not susp then autodestroys the handle obj -- but then problem at last coro() in restore()
         void unhandled_exception() const noexcept {}// TODO store
         uint16_t stage() const {
              if (state.size()) {

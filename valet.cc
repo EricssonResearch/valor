@@ -17,7 +17,7 @@ list<std::string> opt_i("I", desc("Include path (most notably to find `valor.h';
 auto overview = R"(Valet rewrites coroutines in input files with Valor™ state serialization/
 deserialization function calls. If no sources are given or *any* of `sourceK'
 is '-' then *only* stdin is processed to stdout.
-See https://... for details.
+See https://gitlab.internal.ericsson.com/sdna/valor for details.
 )";
 
 int main(int argc, char const** argv_in) {

@@ -3,7 +3,7 @@
 Suspended coroutines (*coro*s) can be resumed in the same thread, or moved to another one, but not across processes. In generel, this isn't possible even theoretically, due to user-defined types and those in 3rd party libraries.
 What we try here instead is to find a compromise between the restrictions under which moving a suspended coro to another process is still possible such that these restrictions allow a generic enough class of source code to be written.
 
-The system in short works by injecting *source level* augmentation to user code that serializes *local variables* of coros when suspended, and deserializing them before continuing from a suspension point. This allows a broad set of C++ types incl. STL containers to be used in these coros, and export/import their internal state between OS processes.
+The system in short works by injecting *source level* augmentation to user code that serializes *local variables* of coros when suspended, and deserializing them before continuing from a suspension point. This allows a broad set of C++ types including STL containers to be used in these coros, and export/import their internal state between OS processes.
 
 The system we propose comprises
 
@@ -18,9 +18,9 @@ The augmented source code is then can be further processed with any C++-20 stand
 ### Usage
 
 Write code, e.g., `mycode.cc` with coros you want to save returning `valor::ser_ctx`. These are always initial-suspended. When any of such coros are suspended, you can call `ser_ctx::serialize()` on their handles, and save or transport the resulting string to another process. There you can call the coro (returning an initially suspended version), and use `ser_ctx::deserialize()`, then trigger a continuation.
-Some helpers are provided to save typing starting/restarting parts.
+Some helpers are provided to save typing starting/restarting parts. Run the source first with Valet, producing `mycode_valet.cc`, then compile that as usual.
 
-Run the source first with Valet, producing `mycode_valet.cc`, then compile that as usual.
+An example for the workflow can be found in `valor.cc` as run by `make check`. Function `k` has some suspension points that are reported as `k()` progresses. After the first, the function's state is copied over to a different process by writing the serialized string to stdin. The second process then continues where the first left off. PIDs are shown on log lines for verification.
 
 ### Limitations
 
