@@ -1,0 +1,33 @@
+## Persisting C++ coroutines with Valor
+
+Suspended coroutines (*coro*s) can be resumed in the same thread, or moved to another one, but not across processes. In generel, this isn't possible even theoretically, due to user-defined types and those in 3rd party libraries.
+What we try here instead is to find a compromise between the restrictions under which moving a suspended coro to another process is still possible such that these restrictions allow a generic enough class of source code to be written.
+
+The system in short works by injecting *source level* augmentation to user code that serializes *local variables* of coros when suspended, and deserializing them before continuing from a suspension point. This allows a broad set of C++ types incl. STL containers to be used in these coros, and export/import their internal state between OS processes.
+
+The system we propose comprises
+
+- a header file `valor.h` that should be included by user code, defining the special coro handle type that user functions should return;
+- a source code rewriting tool `valet` that injects the calls for serialization and deserialization of local variables;
+- and the implicitly included serialization library `ufser` that defines what types can be handled by Valor.
+
+The augmented source code is then can be further processed with any C++-20 standards compliant compiler---the intention of Valor is at least to only use standard language constructs.[^1]
+
+[^1]: GCC in this regard is more forgiving than Clang, most notably with respect to jumping over variable declarations---which we *know* will get initialized but can't explain the guy.
+
+### Usage
+
+Write code, e.g., `mycode.cc` with coros you want to save returning `valor::ser_ctx`. These are always initial-suspended. When any of such coros are suspended, you can call `ser_ctx::serialize()` on their handles, and save or transport the resulting string to another process. There you can call the coro (returning an initially suspended version), and use `ser_ctx::deserialize()`, then trigger a continuation.
+Some helpers are provided to save typing starting/restarting parts.
+
+Run the source first with Valet, producing `mycode_valet.cc`, then compile that as usual.
+
+### Limitations
+
+- No return values from `co_await`
+- Side effects during `co_await`
+- Serializable types: ...
+
+### Vapor
+
+Clang AST not ideal --> coro proto is not parsed yet, symbolic calls and vars are still there which should be recreated in src code
