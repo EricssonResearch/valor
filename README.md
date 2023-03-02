@@ -27,6 +27,18 @@ An example for the workflow can be found in `valor.cc` as run by `make check`. F
 - Side effects during `co_await`
 - Member coro:s
 - Serializable types: ...
+- Multiple co_await in a single full-expression (gcc bug 97452)
+
+### Boost Fibers
+
+We compare task switching overhead in Boost Fibers vs. coros in a simple tool. Two fibers/coros are used, called in an alternating order (for fibers, the default round-robin scheduler is hoped to do so; for coros we enforce it manually). The first, f1, simply yields to / waits for f2 in each iteration; the second, f2, counts down by one in each iteration then yields, starting from a number given on the cmdline. When f2 reaches zero, the program terminates. The total time of execution can be shown by running
+
+```
+make check -C balor
+cat balor/many.log
+```
+
+where the time for fibers is shown first. NB: we run 40x more coro iterations to have roughly the same total time.
 
 ### Vapor
 

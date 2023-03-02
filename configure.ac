@@ -49,6 +49,7 @@ AC_SUBST([ARFLAGS], [cr])
 
 AC_CONFIG_FILES([
     Makefile
+    balor/Makefile
     tests/Makefile
 ])
 AC_OUTPUT
