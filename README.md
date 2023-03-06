@@ -38,7 +38,7 @@ make check -C balor
 cat balor/many.log
 ```
 
-where the time for fibers is shown first. NB: we run 40x more coro iterations to have roughly the same total time.
+where the time for fibers is shown first. NB: we run 8x more coro iterations to have roughly the same total time.
 
 ### Vapor
 

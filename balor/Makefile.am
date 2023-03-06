@@ -6,4 +6,4 @@ LDADD = -lboost_fiber -lboost_context
 once:
 	echo 'for i in f c C;do ./cmp_sw $$i 1;done' >$@
 many:
-	echo -e 'time ./cmp_sw f 10"000"000;time ./cmp_sw C 400"000"000' >$@
+	echo -e 'time ./cmp_sw f 10"000"000;time ./cmp_sw C 80"000"000' >$@
