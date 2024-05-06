@@ -1,3 +1,7 @@
+/** This file is part of the Valor project which is released under the MIT license.
+ * See file COPYING for full license details.
+ * Copyright 2024 Ericsson AB
+ */
 #pragma once
 #include <any>
 #include <coroutine>
